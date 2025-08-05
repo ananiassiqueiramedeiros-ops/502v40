@@ -26,17 +26,36 @@ class GroqClient:
         self.client = None
         self.available = False
         
-        if self.api_key and HAS_GROQ:
+        if not self.api_key:
+            logger.info("ℹ️ GROQ_API_KEY não configurada - Groq desabilitado")
+            return
+        
+        if not HAS_GROQ:
+            logger.warning("⚠️ Biblioteca 'groq' não instalada. Execute: pip install groq")
+            return
+        
+        if not self.api_key:
+            logger.info("ℹ️ GROQ_API_KEY não configurada - Groq desabilitado")
+            return
+        
+        if not HAS_GROQ:
+            logger.warning("⚠️ Biblioteca 'groq' não instalada. Execute: pip install groq")
+            return
+        
+        try:
+            self.client = Groq(api_key=self.api_key)
+            self.available = True
+            logger.info("✅ Cliente Groq (llama3-70b-8192) inicializado com sucesso.")
+        except Exception as e:
+            logger.error(f"❌ Falha ao inicializar o cliente Groq: {e}")
+            self.available = False
+
             try:
                 self.client = Groq(api_key=self.api_key)
                 self.available = True
                 logger.info("✅ Cliente Groq (llama3-70b-8192) inicializado com sucesso.")
             except Exception as e:
                 logger.error(f"❌ Falha ao inicializar o cliente Groq: {e}", exc_info=True)
-        elif not HAS_GROQ:
-            logger.warning("⚠️ Biblioteca 'groq' não instalada. Cliente Groq desabilitado. Execute: pip install groq")
-        else:
-            logger.warning("⚠️ GROQ_API_KEY não encontrada no ambiente. Cliente Groq desabilitado.")
 
     def is_enabled(self) -> bool:
         """Verifica se o cliente está configurado e pronto para uso."""

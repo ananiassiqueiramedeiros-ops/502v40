@@ -25,7 +25,7 @@ class SupabaseClient:
         self.service_role_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
         
         if not self.supabase_url or not self.supabase_key:
-            logger.warning("⚠️ Credenciais do Supabase não configuradas")
+            logger.info("ℹ️ Supabase não configurado - usando modo local")
             self.client = None
             self.admin_client = None
             return

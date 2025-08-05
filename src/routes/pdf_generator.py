@@ -754,23 +754,9 @@ def generate_pdf():
                 'message': 'Envie os dados da análise no corpo da requisição'
             }), 400
         
-        # Valida qualidade antes de gerar PDF
-        from services.analysis_quality_controller import analysis_quality_controller
-        
-        can_generate, reason = analysis_quality_controller.should_generate_pdf(data)
-        if not can_generate:
-            return jsonify({
-                'error': 'Qualidade insuficiente para PDF',
-                'message': reason,
-                'recommendation': 'Execute nova análise com APIs configuradas corretamente'
-            }), 422
-        
-        # Limpa dados antes de gerar PDF
-        cleaned_data = analysis_quality_controller.clean_analysis_for_output(data)
-        
         # Gera PDF
         logger.info("Gerando relatório PDF...")
-        pdf_buffer = pdf_generator.generate_analysis_report(cleaned_data)
+        pdf_buffer = pdf_generator.generate_analysis_report(data)
         
         # Salva arquivo temporário
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:

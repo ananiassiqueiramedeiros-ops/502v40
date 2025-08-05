@@ -101,7 +101,7 @@ class AIManager:
             except Exception as e:
                 logger.error(f"❌ CRÍTICO: Falha ao inicializar Gemini 2.5 Pro: {str(e)}")
         else:
-            logger.error("❌ CRÍTICO: Biblioteca 'google-generativeai' não instalada. Gemini 2.5 Pro desabilitado.")
+            logger.warning("⚠️ Biblioteca 'google-generativeai' não instalada. Gemini desabilitado.")
 
         # Inicializa OpenAI
         if HAS_OPENAI:
@@ -123,9 +123,9 @@ class AIManager:
                 self.providers['groq']['available'] = True
                 logger.info("✅ Groq (llama3-70b-8192) inicializado com sucesso")
             else:
-                logger.warning("⚠️ Groq client não está habilitado")
+                logger.info("ℹ️ Groq client não configurado")
         except Exception as e:
-            logger.warning(f"⚠️ Falha ao inicializar Groq: {str(e)}")
+            logger.info(f"ℹ️ Groq não disponível: {str(e)}")
 
         # Inicializa HuggingFace
         try:
@@ -138,7 +138,7 @@ class AIManager:
                 self.providers['huggingface']['available'] = True
                 logger.info("✅ HuggingFace inicializado com sucesso")
         except Exception as e:
-            logger.warning(f"⚠️ Falha ao inicializar HuggingFace: {str(e)}")
+            logger.info(f"ℹ️ HuggingFace não disponível: {str(e)}")
 
     def get_best_provider(self) -> Optional[str]:
         """Retorna o melhor provedor disponível com base na prioridade e contagem de erros."""

@@ -1,411 +1,158 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ARQV30 Enhanced v2.0 - Rotas de Análise
-Endpoints para análise de mercado ultra-detalhada
+ARQV30 Enhanced v2.0 - Aplicação Principal
+Servidor Flask para análise de mercado ultra-detalhada
 """
 
 import os
+import sys
 import logging
-import time
-import json
+from flask import Flask, render_template, jsonify
+from flask_cors import CORS
 from datetime import datetime
-from flask import Blueprint, request, jsonify, session
-from services.enhanced_analysis_engine import enhanced_analysis_engine
-from services.ultra_detailed_analysis_engine import ultra_detailed_analysis_engine
-from services.ai_manager import ai_manager
-from services.production_search_manager import production_search_manager
-from services.safe_extract_content import safe_content_extractor
-from services.analysis_quality_controller import analysis_quality_controller
-from services.content_quality_validator import content_quality_validator
-from services.attachment_service import attachment_service
-from database import db_manager
-from routes.progress import get_progress_tracker, update_analysis_progress
-from services.auto_save_manager import auto_save_manager, salvar_etapa, salvar_erro
-from services.enhanced_analysis_orchestrator import enhanced_orchestrator
+
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 logger = logging.getLogger(__name__)
 
-# Cria blueprint
-analysis_bp = Blueprint('analysis', __name__)
-
-@analysis_bp.route('/analyze', methods=['POST'])
-def analyze_market():
-    """Endpoint principal para análise de mercado"""
+def create_app():
+    """Cria e configura a aplicação Flask"""
     
-    try:
-        start_time = time.time()
-        logger.info("🚀 Iniciando análise de mercado ultra-detalhada")
-        
-        # Coleta dados da requisição
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                'error': 'Dados não fornecidos',
-                'message': 'Envie os dados da análise no corpo da requisição'
-            }), 400
-        
-        # Validação básica
-        if not data.get('segmento'):
-            return jsonify({
-                'error': 'Segmento obrigatório',
-                'message': 'O campo "segmento" é obrigatório para análise'
-            }), 400
-        
-        # Adiciona session_id se não fornecido
-        if not data.get('session_id'):
-            data['session_id'] = f"session_{int(time.time())}_{os.urandom(4).hex()}"
-        
-        # Inicia sessão de salvamento automático
-        session_id = data['session_id']
-        auto_save_manager.iniciar_sessao(session_id)
-        
-        # Salva dados de entrada imediatamente
-        salvar_etapa("requisicao_analise", {
-            "input_data": data,
-            "timestamp": datetime.now().isoformat(),
-            "ip_address": request.remote_addr,
-            "user_agent": request.headers.get('User-Agent', '')
-        }, categoria="analise_completa")
-        
-        # Inicia rastreamento de progresso
-        progress_tracker = get_progress_tracker(session_id)
-        
-        # Função de callback para progresso
-        def progress_callback(step: int, message: str, details: str = None):
-            update_analysis_progress(session_id, step, message, details)
-            # Salva progresso também
-            salvar_etapa("progresso", {
-                "step": step,
-                "message": message,
-                "details": details
-            }, categoria="logs")
-        
-        # Log dos dados recebidos
-        logger.info(f"📊 Dados recebidos: Segmento={data.get('segmento')}, Produto={data.get('produto')}")
-        
-        # Prepara query de pesquisa se não fornecida
-        if not data.get('query'):
-            segmento = data.get('segmento', '')
-            produto = data.get('produto', '')
-            if produto:
-                data['query'] = f"mercado {segmento} {produto} Brasil tendências oportunidades 2024"
-            else:
-                data['query'] = f"análise mercado {segmento} Brasil dados estatísticas crescimento"
-        
-        logger.info(f"🔍 Query de pesquisa: {data['query']}")
-        
-        # Salva query preparada
-        salvar_etapa("query_preparada", {"query": data['query']}, categoria="pesquisa_web")
-        
-        # Executa análise GIGANTE ultra-detalhada
-        logger.info("🚀 Executando análise GIGANTE ultra-detalhada...")
+    # Carrega variáveis de ambiente
+    from services.environment_loader import environment_loader
+    
+    app = Flask(__name__)
+    app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    
+    # Configuração CORS
+    CORS(app, origins=os.getenv('CORS_ORIGINS', '*').split(','))
+    
+    # Registra blueprints
+    from routes.analysis import analysis_bp
+    from routes.enhanced_analysis import enhanced_analysis_bp
+    from routes.progress import progress_bp
+    from routes.user import user_bp
+    from routes.files import files_bp
+    from routes.pdf_generator import pdf_bp
+    from routes.monitoring import monitoring_bp
+    
+    app.register_blueprint(analysis_bp, url_prefix='/api')
+    app.register_blueprint(enhanced_analysis_bp, url_prefix='/api')
+    app.register_blueprint(progress_bp, url_prefix='/api')
+    app.register_blueprint(user_bp, url_prefix='/api')
+    app.register_blueprint(files_bp, url_prefix='/api')
+    app.register_blueprint(pdf_bp, url_prefix='/api')
+    app.register_blueprint(monitoring_bp, url_prefix='/api')
+    
+    @app.route('/')
+    def index():
+        """Página principal"""
+        return render_template('enhanced_index.html')
+    
+    @app.route('/archaeological')
+    def archaeological():
+        """Interface arqueológica"""
+        return render_template('enhanced_interface.html')
+    
+    @app.route('/api/app_status')
+    def app_status():
+        """Status da aplicação"""
         try:
-            # Verifica se deve usar análise aprimorada
-            use_enhanced = data.get('enhanced_mode', True)  # Por padrão usa modo aprimorado
+            from services.ai_manager import ai_manager
+            from services.production_search_manager import production_search_manager
+            from database import db_manager
             
-            if use_enhanced:
-                logger.info("🧠 Usando análise ultra-aprimorada com agentes psicológicos...")
-                analysis_result = enhanced_orchestrator.execute_ultra_enhanced_analysis(
-                    data,
-                    session_id=session_id,
-                    progress_callback=progress_callback
-                )
-            else:
-                logger.info("🚀 Usando análise GIGANTE padrão...")
-                analysis_result = ultra_detailed_analysis_engine.generate_gigantic_analysis(
-                    data,
-                    session_id=session_id,
-                    progress_callback=progress_callback
-                )
+            ai_status = ai_manager.get_provider_status()
+            search_status = production_search_manager.get_provider_status()
+            db_status = db_manager.test_connection()
             
-            # Salva resultado da análise imediatamente
-            salvar_etapa("analise_resultado", analysis_result, categoria="analise_completa")
-            
-            # VALIDAÇÃO FLEXÍVEL DO RESULTADO
-            logger.info("🔍 Validando qualidade da análise...")
-            from services.enhanced_validation_system import enhanced_validation_system
-            quality_validation = enhanced_validation_system.validate_with_progressive_tolerance(
-                analysis_result, session_id
-            )
-            
-            # Salva validação
-            salvar_etapa("validacao_qualidade", quality_validation, categoria="analise_completa")
-            
-            # Só rejeita se validação de emergência também falhar (muito raro)
-            if not quality_validation.get('valid', False) and not quality_validation.get('emergency_mode', False):
-                logger.error(f"❌ Análise rejeitada por baixa qualidade: {quality_validation['errors']}")
-                salvar_erro("validacao_falha", Exception("Análise rejeitada por baixa qualidade"), contexto=quality_validation)
-                
-                # Mesmo rejeitada, tenta salvar dados parciais
-                try:
-                    dados_parciais = auto_save_manager.consolidar_sessao(session_id)
-                    logger.info(f"💾 Dados parciais salvos: {dados_parciais}")
-                except Exception as save_error:
-                    logger.error(f"❌ Erro ao salvar dados parciais: {save_error}")
-                
-                return jsonify({
-                    'error': 'Análise de baixa qualidade rejeitada',
-                    'message': 'A análise gerada não atende aos critérios de qualidade',
-                    'quality_report': quality_validation,
-                    'recommendations': quality_validation.get('recommendations', []),
-                    'timestamp': datetime.now().isoformat(),
-                    'dados_parciais_salvos': True,
-                    'session_id': session_id
-                }), 422
-            else:
-                # Análise aprovada (mesmo que em nível de emergência)
-                logger.info(f"✅ Análise aprovada no nível {quality_validation.get('level', 'UNKNOWN')}")
-                
-                if quality_validation.get('emergency_mode'):
-                    logger.warning("⚠️ Análise aprovada em modo de emergência")
-            
-            # Limpa análise removendo componentes inválidos
-            analysis_result = enhanced_validation_system.clean_analysis_for_output_flexible(analysis_result)
-            
-            # Salva análise limpa
-            salvar_etapa("analise_limpa", analysis_result, categoria="analise_completa")
-            
-            logger.info(f"✅ Análise validada com score {quality_validation['quality_score']:.1f}% (nível: {quality_validation.get('level', 'UNKNOWN')})")
-            
-        except Exception as e:
-            logger.error(f"❌ Análise GIGANTE falhou: {str(e)}")
-            salvar_erro("analise_gigante", e, contexto=data)
-            
-            # Tenta recuperar dados salvos automaticamente
-            try:
-                dados_recuperados = auto_save_manager.consolidar_sessao(session_id)
-                logger.info(f"🔄 Dados recuperados automaticamente: {dados_recuperados}")
-                
-                return jsonify({
-                    'error': 'Falha na análise principal',
-                    'message': str(e),
-                    'dados_recuperados': True,
-                    'session_id': session_id,
-                    'relatorio_parcial': dados_recuperados,
-                    'timestamp': datetime.now().isoformat(),
-                    'recommendation': 'Dados intermediários foram preservados e podem ser acessados'
-                }), 206  # Partial Content
-                
-            except Exception as recovery_error:
-                logger.error(f"❌ Falha na recuperação automática: {recovery_error}")
-            
-            # NÃO GERA FALLBACK - FALHA EXPLICITAMENTE
             return jsonify({
-                'error': 'Falha na análise',
-                'message': str(e),
+                'status': 'healthy',
                 'timestamp': datetime.now().isoformat(),
-                'recommendation': 'Configure todas as APIs necessárias e tente novamente',
-                'session_id': session_id,
-                'dados_preservados': 'Verifique diretório relatorios_intermediarios',
-                'debug_info': {
-                    'input_data': {
-                        'segmento': data.get('segmento'),
-                        'produto': data.get('produto'),
-                        'query': data.get('query')
+                'version': '2.0.0',
+                'services': {
+                    'ai_providers': {
+                        'available': len([p for p in ai_status.values() if p['available']]),
+                        'total': len(ai_status),
+                        'providers': ai_status
                     },
-                    'ai_status': ai_manager.get_provider_status(),
-                    'search_status': production_search_manager.get_provider_status()
+                    'search_providers': {
+                        'available': len([p for p in search_status.values() if p['available']]),
+                        'total': len(search_status),
+                        'providers': search_status
+                    },
+                    'database': {
+                        'connected': db_status
+                    }
                 }
-            }), 500
-        
-        # Verifica se a análise foi bem-sucedida
-        if not analysis_result or not isinstance(analysis_result, dict):
-            logger.error("❌ Análise retornou resultado inválido ou vazio")
-            salvar_erro("resultado_invalido", Exception("Resultado inválido"), contexto={"result_type": type(analysis_result)})
-            return jsonify({
-                'error': 'Análise retornou resultado inválido',
-                'message': 'Sistema não conseguiu gerar análise válida',
-                'timestamp': datetime.now().isoformat(),
-                'recommendation': 'Verifique configuração das APIs e tente novamente',
-                'session_id': session_id,
-                'debug_info': {
-                    'result_type': type(analysis_result).__name__,
-                    'result_length': len(str(analysis_result)) if analysis_result else 0,
-                    'ai_status': ai_manager.get_provider_status()
-                }
-            }), 500
-        
-        # Marca progresso como completo
-        progress_tracker.complete()
-        
-        # Salva no banco de dados
-        try:
-            logger.info("💾 Salvando análise no banco de dados...")
-            db_record = db_manager.create_analysis({
-                'segmento': data.get('segmento'),
-                'produto': data.get('produto'),
-                'publico': data.get('publico'),
-                'preco': data.get('preco'),
-                'objetivo_receita': data.get('objetivo_receita'),
-                'orcamento_marketing': data.get('orcamento_marketing'),
-                'prazo_lancamento': data.get('prazo_lancamento'),
-                'concorrentes': data.get('concorrentes'),
-                'dados_adicionais': data.get('dados_adicionais'),
-                'query': data.get('query'),
-                'status': 'completed',
-                'session_id': session_id,
-                **analysis_result  # Inclui toda a análise
             })
-            
-            if db_record:
-                if db_record.get('local_only'):
-                    analysis_result['local_only'] = True
-                    analysis_result['local_files'] = db_record.get('local_files')
-                    logger.info(f"✅ Análise salva localmente: {len(db_record['local_files']['files'])} arquivos")
-                else:
-                    analysis_result['database_id'] = db_record['id']
-                    analysis_result['local_files'] = db_record.get('local_files')
-                    logger.info(f"✅ Análise salva: Supabase ID {db_record['id']} + arquivos locais")
-                
-                # Salva confirmação do banco
-                salvar_etapa("banco_salvo", {
-                    "database_id": db_record.get('id'),
-                    "local_files": db_record.get('local_files', {})
-                }, categoria="analise_completa")
-            else:
-                logger.warning("⚠️ Falha ao salvar análise")
-                salvar_erro("banco_falha", Exception("Falha ao salvar no banco"))
-                
         except Exception as e:
-            logger.error(f"❌ Erro ao salvar no banco: {str(e)}")
-            salvar_erro("banco_erro", e)
-            # Não falha a análise por erro no banco
-            analysis_result['database_warning'] = f"Falha ao salvar: {str(e)}"
-        
-        # Consolida sessão final
-        try:
-            relatorio_consolidado = auto_save_manager.consolidar_sessao(session_id)
-            analysis_result['relatorio_consolidado'] = relatorio_consolidado
-            logger.info(f"📋 Relatório consolidado gerado: {relatorio_consolidado}")
-        except Exception as e:
-            logger.error(f"❌ Erro ao consolidar sessão: {e}")
-        
-        # Calcula tempo de processamento
-        end_time = time.time()
-        processing_time = end_time - start_time
-        
-        # Adiciona metadados finais
-        if 'metadata' not in analysis_result:
-            analysis_result['metadata'] = {}
-        
-        analysis_result['metadata'].update({
-            'processing_time_seconds': processing_time,
-            'processing_time_formatted': f"{int(processing_time // 60)}m {int(processing_time % 60)}s",
-            'request_timestamp': datetime.now().isoformat(),
-            'session_id': data.get('session_id'),
-            'salvamento_automatico': True,
-            'dados_preservados': True,
-            'isolamento_falhas': True,
-            'input_data': {
-                'segmento': data.get('segmento'),
-                'produto': data.get('produto'),
-                'query': data.get('query')
-            },
-            'quality_validated': True,
-            'simulation_free': True
-        })
-        
-        # Salva resposta final
-        salvar_etapa("resposta_final", analysis_result, categoria="analise_completa")
-        
-        logger.info(f"✅ Análise concluída em {processing_time:.2f} segundos")
-        
-        return jsonify(analysis_result)
-        
-    except Exception as e:
-        logger.error(f"❌ Erro crítico na análise: {str(e)}", exc_info=True)
-        
-        # Remove progresso em caso de erro
-        try:
-            if 'session_id' in locals() and session_id in get_progress_tracker.__globals__.get('progress_sessions', {}):
-                del get_progress_tracker.__globals__['progress_sessions'][session_id]
-        except:
-            pass  # Ignora erros de limpeza
-        
-        return jsonify({
-            'error': 'Erro na análise',
-            'message': str(e),
-            'timestamp': datetime.now().isoformat(),
-            'fallback_available': False,
-            'recommendation': 'Configure todas as APIs necessárias antes de tentar novamente',
-            'debug_info': {
-                'session_id': locals().get('session_id', 'unknown'),
-                'input_data': {
-                    'segmento': data.get('segmento') if 'data' in locals() else None,
-                    'produto': data.get('produto') if 'data' in locals() else None,
-                    'query': data.get('query') if 'data' in locals() else None
-                },
-                'ai_status': ai_manager.get_provider_status(),
-                'search_status': production_search_manager.get_provider_status()
-            }
-        }), 500
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
+    
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({'error': 'Endpoint não encontrado'}), 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({'error': 'Erro interno do servidor'}), 500
+    
+    return app
 
-@analysis_bp.route('/status', methods=['GET'])
-def get_analysis_status():
-    """Retorna status dos sistemas de análise"""
+def main():
+    """Função principal"""
+    
+    print("🚀 ARQV30 Enhanced v2.0 - Iniciando aplicação...")
     
     try:
-        # Status dos provedores de IA
-        ai_status = ai_manager.get_provider_status()
+        # Cria aplicação
+        app = create_app()
         
-        # Status dos provedores de busca
-        search_status = production_search_manager.get_provider_status()
+        # Configurações do servidor
+        host = os.getenv('HOST', '0.0.0.0')
+        port = int(os.getenv('PORT', 5000))
+        debug = os.getenv('FLASK_ENV', 'production') == 'development'
         
-        # Status do banco de dados
-        db_status = db_manager.test_connection()
+        print(f"🌐 Servidor: http://{host}:{port}")
+        print(f"🔧 Modo: {'Desenvolvimento' if debug else 'Produção'}")
+        print(f"📊 Interface: Análise Ultra-Detalhada de Mercado")
+        print(f"🤖 IA: Gemini 2.5 Pro + Groq + Fallbacks")
+        print(f"🔍 Pesquisa: WebSailor + Google + Múltiplos Engines")
+        print(f"💾 Banco: Supabase + Arquivos Locais")
+        print(f"🛡️ Sistema: Ultra-Robusto com Salvamento Automático")
         
-        # Status geral
-        total_ai_available = len([p for p in ai_status.values() if p['available']])
-        total_search_available = len([p for p in search_status.values() if p['available']])
+        print("\n" + "=" * 60)
+        print("✅ ARQV30 Enhanced v2.0 PRONTO!")
+        print("=" * 60)
+        print("Pressione Ctrl+C para parar o servidor")
+        print("=" * 60)
         
-        overall_status = "healthy" if (total_ai_available > 0 and total_search_available > 0 and db_status) else "degraded"
+        # Inicia servidor
+        app.run(
+            host=host,
+            port=port,
+            debug=debug,
+            threaded=True
+        )
         
-        return jsonify({
-            'status': overall_status,
-            'timestamp': datetime.now().isoformat(),
-            'systems': {
-                'ai_providers': {
-                    'status': 'healthy' if total_ai_available > 0 else 'error',
-                    'available_count': total_ai_available,
-                    'total_count': len(ai_status),
-                    'providers': ai_status
-                },
-                'search_providers': {
-                    'status': 'healthy' if total_search_available > 0 else 'error',
-                    'available_count': total_search_available,
-                    'total_count': len(search_status),
-                    'providers': search_status
-                },
-                'database': {
-                    'status': 'healthy' if db_status else 'error',
-                    'connected': db_status
-                },
-                'content_extraction': {
-                    'status': 'healthy',
-                    'available': True
-                }
-            },
-            'capabilities': {
-                'multi_ai_fallback': total_ai_available > 1,
-                'multi_search_fallback': total_search_available > 1,
-                'real_time_search': total_search_available > 0,
-                'content_extraction': True,
-                'database_storage': db_status
-            }
-        })
-        
+    except KeyboardInterrupt:
+        print("\n\n✅ Servidor encerrado pelo usuário")
     except Exception as e:
-        logger.error(f"Erro ao obter status: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
+        print(f"\n❌ Erro ao iniciar servidor: {e}")
+        sys.exit(1)
 
-@analysis_bp.route('/reset_providers', methods=['POST'])
-def reset_providers():
-    """Reset contadores de erro dos provedores"""
+if __name__ == '__main__':
+    main()
+
     
     try:
         data = request.get_json() or {}
