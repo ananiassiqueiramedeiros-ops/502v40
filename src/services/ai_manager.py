@@ -99,9 +99,9 @@ class AIManager:
                     self.providers['gemini']['available'] = True
                     logger.info("✅ Gemini 2.5 Pro (gemini-2.0-flash-exp) inicializado como MODELO PRIMÁRIO")
             except Exception as e:
-                logger.error(f"❌ CRÍTICO: Falha ao inicializar Gemini 2.5 Pro: {str(e)}")
+                logger.warning(f"⚠️ Falha ao inicializar Gemini: {str(e)}")
         else:
-            logger.warning("⚠️ Biblioteca 'google-generativeai' não instalada. Gemini desabilitado.")
+            logger.warning("⚠️ Biblioteca 'google-generativeai' não instalada.")
 
         # Inicializa OpenAI
         if HAS_OPENAI:
@@ -112,9 +112,9 @@ class AIManager:
                     self.providers["openai"]["available"] = True
                     logger.info("✅ OpenAI (gpt-3.5-turbo) inicializado com sucesso")
             except Exception as e:
-                logger.warning(f"⚠️ Falha ao inicializar OpenAI: {str(e)}")
+                logger.info(f"ℹ️ OpenAI não disponível: {str(e)}")
         else:
-            logger.warning("⚠️ Biblioteca 'openai' não instalada. OpenAI desabilitado.")
+            logger.info("ℹ️ Biblioteca 'openai' não instalada.")
 
         # Inicializa Groq
         try:

@@ -159,13 +159,10 @@ def main():
     flask_env = os.getenv('FLASK_ENV', 'production')
     
     if flask_env == 'production':
-        logger.info("🏭 Modo: PRODUÇÃO")
-        
         # Tenta usar Gunicorn primeiro
         try:
-            import gunicorn
             success = run_with_gunicorn()
-            if not success:
+            logger.info("✅ Dependências principais importadas")
                 logger.warning("⚠️ Gunicorn falhou, usando Flask...")
                 run_with_flask()
         except ImportError:
